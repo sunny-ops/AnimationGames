@@ -1,0 +1,333 @@
+<!DOCTYPE html> <html lang="en"> <head>
+<title>Hearts</title>
+<style> h2 {color: red;} .LABEL {color: blue;}</style>
+<script>
+// alert("Hello world!");
+
+function inject(loc, val){document.getElementById(loc).innerHTML = val;}
+
+function setNdx(list, item){item.ndx = list.length; list.push(item);}
+
+window.onload = function(){
+    // inject("HEAD", "dude!");
+
+    // var p = new Player("Jojo");
+    // new Player("Frank");
+    t = new Trick();
+    Player.createAll("Archie Betty Jughead Veronica Reggie");
+    // inject("HEAD", Player.all[1].fullName());
+    deck = new Loc("Deck", null);
+    kitty = new Loc("Kitty", null);
+    Card.createAll();
+    takeAction = deal; inject("ACTION", 'deal');
+    repaint();
+    doNothing();
+}
+
+//-----repaint---------
+function repaint(){
+    inject("PLAYERS", Player.showAll());
+    inject("PLAYER", player == null ?'Null': player.name);
+
+    inject("CARDS", Loc.showAll());
+    inject("HEARTBREAK", heartBreak ? cSpan('red', 'heartbreak') : '');
+    inject("LEDCARD", Trick.led == null ? '' : Trick.led.name());
+
+}
+
+// Locations:
+var deck, kitty;
+// a trick ( t.loc will be a location )
+var t;
+// number of real players
+var nPlayers = 5;
+var iRound = 1, iTrick = 0, player, minClub, heartBreak; // heartBreak is a boolean
+// number of cards that go to Kitty // number of cards that go to a single player
+var nKitty = 52 % nPlayers, nHands = (52 - nKitty) / nPlayers; 
+var selCard;
+
+var takeAction;
+//----------------------------Trick-----------------------------------
+//-----constructor-------
+function Trick() {
+    this.loc = new Loc("Trick", null);
+    this.leader = null; // player
+    this.winner = null; // player
+    this.led = null; // card
+    this.top = null; // card
+}
+//-----------------------------Location----------------------------------
+//-----constructor-------
+function Loc(name, player) {
+    this.name = name;
+    this.player = player;  //player can be null
+    if (player != null) {
+        this.name = player.name + "'s " + name; // update the name
+    }
+    setNdx(Loc.all, this);
+}
+//-----static elements of Location-------
+Loc.all = [];
+Loc.showAll = function(){
+    var res = ""; // result
+    for (var i = 0; i < Loc.all.length; i++){
+        res += '<br/>' + Loc.all[i].show(); // <br/> put in a new line
+    }
+    return res;
+}
+
+//-----other functions of Location-------
+Loc.prototype.show = function() {
+    var res = this.name + ': ';
+    for (var i = 0; i < 52; i++){
+        var c = Card.all[i];
+        if (c.loc == this) {
+            res += ' ' + c.sel();
+        }
+    }
+    return res;
+}
+
+//------------------------------Player------------------------------------
+//-----constructor-------
+function Player(name){
+    this.name = name;
+    this.score = 0; this.handScore = 0;
+    this.hand = new Loc("hand", this);
+    this.pass = new Loc("pass", this);
+    // this.ndx = Player.all.length; // length is a function in Java but a number in JS
+    // Player.all.push(this);
+    setNdx(Player.all, this);
+}
+
+//-----static elements of Player-------
+Player.all = []; // make a static list for the Player class
+Player.createAll = function(str){
+    var a = str.split(" "); // a - array
+    for (var i = 0; i < a.length; i++) {new Player(a[i]);}
+}
+Player.showAll = function(){
+    var res = "", sep = "";
+    for (var i in Player.all) { // in JS, use "in" instead of ":", and i is not object but index
+        res += (sep+Player.all[i].fullName());
+        sep = ', ';    
+    } 
+    return res;
+}
+
+//-----other functions of Player-------
+Player.prototype.fullName = function(){
+    return this.name + ' ' + this.score;
+}
+Player.prototype.left = function(){
+    return Player.all[(this.ndx + 1) % nPlayers];
+} 
+
+//------------------------------Card------------------------------------
+//-----constructor-------
+function Card(iS,iR){ // iS iR - index of the suit and Rank
+    this.iS = iS;
+    this.iR = iR;
+    this.loc = deck;
+    this.bad = 0;
+    setNdx(Card.all, this);
+}
+
+//-----static elements of Card-------
+Card.all = [];
+Card.ranks = "2 3 4 5 6 7 8 9 T J Q K A".split(' ');
+Card.suits = "&clubs; &hearts; &spades; &diams;".split(' ');
+Card.showAll = function(){
+    var res = '', sep = '';
+    for (var i in Card.all) { // in JS, use "in" instead of ":", and i is not object but index
+        res += (sep+Card.all[i].sel());
+        sep = ' ';    
+    } 
+    return res;
+}
+Card.createAll = function(){
+    for (var iS = 0; iS < 4; iS++) {
+        for (var iR = 0; iR < 13; iR++) {
+            var c = new Card(iS,iR);
+            if (iS == 1) {c.bad = 1;}
+            if (iS == 2 && iR == 10) {c.bad = 13;}
+        }
+    }
+}
+
+Card.sel = function(i){
+    selCard = Card.all[i];
+    inject("HEAD", selCard.rbName());
+    var p = selCard.loc.player;
+    if (p != player) { alert("It is " +player.name+"'s turn"); return;}
+    // selCard.loc = t.loc; // move the player's card into trick
+    if (iTrick == 0) {playerPassingCard();}
+    else {playerPlaysCard();}
+    repaint();
+}
+
+
+//-----other functions of Card-------
+Card.prototype.name = function(){return Card.ranks[this.iR] + Card.suits[this.iS];}
+function cSpan(c, x) { // c - color, x - the stuff to be colored
+    // JS always use single quote, because HTML uses double qoute
+    return '<span style="color:'+c+'">'+x+'</span>';
+}
+
+Card.prototype.rbName = function(){ // show with color
+    var s = (this.iS % 2 == 0) ? Card.suits[this.iS] : cSpan('red', Card.suits[this.iS]); // s - suit
+    return Card.ranks[this.iR] + s;
+}
+
+Card.prototype.sel = function(){ // sel - select a single card
+    return '<span onclick="Card.sel('+this.ndx+');">'+this.rbName()+'</span>';
+}
+
+// ---------------------------Deal------------------------------------
+//not a class:
+function deal() {
+    var locA = []; // array of locations
+    for (var i = 0; i < nKitty; i++) {locA.push(kitty);}
+    for (var p = 0; p < nPlayers; p++) {
+        for (var i = 0; i < nHands; i++) {locA.push(Player.all[p].hand);}
+    }
+    // shuffle
+    fyShuffle(locA, 52);
+
+    // copy locations to each card
+    for (var i = 0; i < 52; i++) {Card.all[i].loc = locA[i];}
+    repaint();
+
+    // skip the passing phase 
+
+    // change button action
+    inject('ACTION', 'Play first trick!');
+    takeAction = playFirstTrick;
+}
+
+// get random num
+function rnd(k) {
+    return Math.floor(Math.random() * k); // random() returns [0,1)
+}
+// do shuffle
+function fyShuffle(arr, n) { // fy - fish yates algorithm
+    for (var i = n; i > 1; i--) {
+        var k = rnd(i);
+        var t = arr[i - 1]; arr[i - 1] = arr[k]; arr[k] = t; // swap
+    }
+}
+
+// ---------------------------Play Tricks------------------------------------
+function playFirstTrick() {
+    iTrick = 1;
+    heartBreak = false;
+    t.led = null;
+    t.leader = whoHasMinClub(); // sets min club
+    player = t.leader; // current player
+    msg(player.name + ' should lead lowest club.');
+    repaint();
+    inject('ACTION', 'no button action');
+    takeAction = doNothing;
+}
+
+function leading() {return t.led == null;}
+
+function validLead() {
+    if (iTrick == 1) { return selCard == minClub;}
+    return (clean() || heartBreak || allBad());
+}
+function allBad() { // unlikely players have bad cards
+    for (var i = 0; i < 52; i++) {
+        var c = Card.all[i];
+        if (c.loc == player.hand && c.bad == 0) {return false;} 
+    }
+    return true;
+}
+
+function clean() {return selCard.bad == 0;}
+function validFollow() {
+    if (followsSuit()) {return true;}
+    if (canFollowSuit()) { alert('Must follow suit.'); return false;}
+    if (iTrick == 1 && (!allBad())) {alert('First trick clean.'); return false;}
+    return true;
+}
+function followsSuit() {return selCard.iS == t.led.iS;}
+function canFollowSuit() {
+    for (var i = 0; i < 52; i++){
+        var c = Card.all[i];
+        if (c.loc == player.hand && c.iS == t.led.iS) {return true;}
+    }
+    return false;
+}
+
+function playerPlaysCard() {
+    if (leading()) {
+        if (!validLead()) {
+            alert(iTrick == 1 ? 'Lead low club' : 'Hearts not broken');
+            return;
+        }
+        t.led = selCard;
+        t.top = t.led;
+        t.winner = player;   
+      
+    } else {
+        if (!validFollow()) {return;}
+        if (followsSuit() && (selCard.iR > t.top.iR)) {
+            t.top = selCard;
+            t.winner = player;
+        }
+    }
+
+    selCard.loc = t.loc;
+    player = player.left();
+    if (player == t.leader) {nextTrick();}
+}
+
+function nextTrick() {
+    scoreTrick();
+    iTrick++;
+    t.leader = t.winner;
+    player = t.leader;
+    t.led = null;
+    msg(player.name + ' gets the lead');
+    if (iTrick > nHands) { // ?
+        nextRound();
+    }
+}
+
+function scoreTrick() {
+    var total = 0;
+    for (var i = 0; i < 52; i++) {
+        var c = Card.all[i];
+        if (c.loc == t.loc || c.loc == kitty) {total += c.bad; c.loc = deck;}
+    }
+    if (total > 0) {heartBreak = true;}
+    t.winner.handScore += total;
+}
+function nextRound() {alert('Next round');}
+
+//---------------------------helper functions----------------------------------
+function msg(x) {inject('MSG', x);}
+function doNothing() {alert('Button does nothing.');}
+function whoHasMinClub() {
+    for (var i = 0; i <= nKitty; i++) { // the max number of cards that Kitty will have
+        var c = Card.all[i], p = c.loc.player;
+        if (p!=null) {
+            minClub = c;
+            return p;
+        }
+    }
+    return null; // should never happen
+}
+
+</script>
+</head> <body>
+<h1 id="HEAD">Hearts</h1>
+<span class="LABEL">Players: </span> <span id="PLAYERS"> players </span>
+<br/><br/>Current player: <span id="PLAYER"> player </span>
+<button id="ACTION" onclick="takeAction()">Button</button>
+<div id="MSG">message</div>
+<br/><span id="LEDCARD">Led Card</span>
+<br/><span id="HEARTBREAK">Heart Break</span>
+<div id="CARDS"> cards </div>
+</body> </html>
